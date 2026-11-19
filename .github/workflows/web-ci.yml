@@ -1,0 +1,51 @@
+# Checks, tests and builds the Flutter web app on every push and pull request.
+# Deploying is done by Vercel's GitHub integration (see vercel.json and
+# tool/vercel_install.sh), which builds and publishes https://jobsandmore.vercel.app
+# on each push to main. tool/deploy_web.ps1 deploys by hand from a PC.
+name: Web – test and build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Analyse
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build web (release)
+        run: flutter build web --release
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
