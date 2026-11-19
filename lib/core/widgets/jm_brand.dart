@@ -4,9 +4,8 @@ import 'dart:ui' as ui;
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Placeholder logo mark: a rounded emerald tile holding an upward "path"
-/// (a stepped J that ends in a rising arrow-dot), standing for a career that
-/// moves forward. Swap for the final mark in `assets/brand/`.
+/// Logo mark: the "ng" rosette from the official logo
+/// (assets/brand/logo_mark.png). Falls back to the painted placeholder.
 class JmLogoMark extends StatelessWidget {
   const new({this.size = 36, super.key});
 
@@ -14,9 +13,15 @@ class JmLogoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'JobsAndMore',
+    label: 'Jobs & More ng',
     image: true,
-    child: CustomPaint(size: Size.square(size), painter: JmLogoPainter()),
+    child: Image.asset(
+      'assets/brand/logo_mark.png',
+      width: size,
+      height: size,
+      errorBuilder: (_, _, _) =>
+          CustomPaint(size: Size.square(size), painter: JmLogoPainter()),
+    ),
   );
 }
 
@@ -86,34 +91,14 @@ class JmLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jm = context.jm;
     if (!showWordmark) return JmLogoMark(size: size);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
-      label: 'JobsAndMore',
+      label: 'Jobs & More ng',
       excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          JmLogoMark(size: size),
-          SizedBox(width: size * 0.3),
-          Text.rich(
-            TextSpan(
-              children: [
-                const TextSpan(text: 'JobsAnd'),
-                TextSpan(
-                  text: 'More',
-                  style: TextStyle(color: jm.primary),
-                ),
-              ],
-            ),
-            style: context.type.h4.copyWith(
-              fontSize: size * 0.62,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-              color: jm.text,
-            ),
-          ),
-        ],
+      child: Image.asset(
+        dark ? 'assets/brand/logo_dark.png' : 'assets/brand/logo.png',
+        height: size * 1.4,
       ),
     );
   }

@@ -12,8 +12,9 @@ enum NavItem { home, jobs, hire, biz, academy, tools, resources }
 
 enum NavMode { public, seeker, employer, business, admin }
 
-/// Brand mark. Uses the supplied logo file (assets/brand/logo.png) when it is
-/// present, otherwise the design's "J&M" tile + wordmark.
+/// Brand logo: the official "Jobs & More ng .com" artwork, with a
+/// white-lettered variant on dark backgrounds. Falls back to a text wordmark
+/// if the image fails to load.
 class DLogo extends StatelessWidget {
   const new({this.onDark = false, this.compact = false, super.key});
 
@@ -61,12 +62,15 @@ class DLogo extends StatelessWidget {
         ],
       ],
     );
+    // Official logo (assets/brand/source/logo_original.jpg). The dark variant
+    // has white lettering for dark backgrounds and dark mode.
+    final dark = onDark || Theme.of(context).brightness == Brightness.dark;
     return Semantics(
-      label: 'JobsAndMore',
+      label: 'Jobs & More ng',
       excludeSemantics: true,
       child: Image.asset(
-        'assets/brand/logo.png',
-        height: compact ? 36 : 44,
+        dark ? 'assets/brand/logo_dark.png' : 'assets/brand/logo.png',
+        height: compact ? 40 : 52,
         errorBuilder: (_, _, _) => fallback,
       ),
     );
