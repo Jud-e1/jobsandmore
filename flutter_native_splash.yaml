@@ -1,0 +1,18 @@
+# Generate with: dart run flutter_native_splash:create
+# Web is excluded: web/index.html has its own branded splash.
+flutter_native_splash:
+  color: "#F7F9FB"
+  image: assets/brand/splash_mark.png
+  color_dark: "#0B1220"
+  image_dark: assets/brand/splash_mark.png
+
+  android_12:
+    color: "#F7F9FB"
+    image: assets/brand/splash_mark.png
+    icon_background_color: "#F7F9FB"
+    color_dark: "#0B1220"
+    image_dark: assets/brand/splash_mark.png
+    icon_background_color_dark: "#0B1220"
+
+  web: false
+  fullscreen: false

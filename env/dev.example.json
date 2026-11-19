@@ -1,0 +1,7 @@
+{
+  "FLAVOR": "dev",
+  "SUPABASE_URL": "https://YOUR-PROJECT.supabase.co",
+  "SUPABASE_ANON_KEY": "your-anon-key",
+  "PAYSTACK_PUBLIC_KEY": "pk_test_xxx",
+  "SITE_URL": "http://localhost:5000"
+}

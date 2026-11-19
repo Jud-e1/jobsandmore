@@ -1,0 +1,4 @@
+# Generated icon tables from upstream; not linted with the app rules.
+analyzer:
+  exclude:
+    - "**"

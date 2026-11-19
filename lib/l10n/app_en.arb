@@ -1,0 +1,13 @@
+{
+  "@@locale": "en",
+  "appName": "JobsAndMore",
+  "@appName": { "description": "Product name. Do not translate." },
+  "navHome": "Home",
+  "navJobs": "Jobs",
+  "navTools": "Tools",
+  "navLearn": "Learn",
+  "navMe": "Me",
+  "actionSignIn": "Sign in",
+  "actionGetStarted": "Get started",
+  "actionTryAgain": "Try again"
+}
