@@ -5,7 +5,7 @@ import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Logo mark: the "ng" rosette from the official logo
-/// (assets/brand/logo_mark.png). Falls back to the painted placeholder.
+/// (assets/brand/jm_logo_mark.png). Falls back to the painted placeholder.
 class JmLogoMark extends StatelessWidget {
   const new({this.size = 36, super.key});
 
@@ -16,7 +16,7 @@ class JmLogoMark extends StatelessWidget {
     label: 'Jobs & More ng',
     image: true,
     child: Image.asset(
-      'assets/brand/logo_mark.png',
+      'assets/brand/jm_logo_mark.png',
       width: size,
       height: size,
       errorBuilder: (_, _, _) =>
@@ -97,7 +97,7 @@ class JmLogo extends StatelessWidget {
       label: 'Jobs & More ng',
       excludeSemantics: true,
       child: Image.asset(
-        dark ? 'assets/brand/logo_dark.png' : 'assets/brand/logo.png',
+        dark ? 'assets/brand/jm_logo_dark.png' : 'assets/brand/jm_logo.png',
         height: size * 1.4,
       ),
     );

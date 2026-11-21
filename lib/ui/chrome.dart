@@ -69,7 +69,7 @@ class DLogo extends StatelessWidget {
       label: 'Jobs & More ng',
       excludeSemantics: true,
       child: Image.asset(
-        dark ? 'assets/brand/logo_dark.png' : 'assets/brand/logo.png',
+        dark ? 'assets/brand/jm_logo_dark.png' : 'assets/brand/jm_logo.png',
         height: compact ? 40 : 52,
         errorBuilder: (_, _, _) => fallback,
       ),
