@@ -41,7 +41,7 @@ jobs:
         run: flutter test
 
       - name: Build web (release)
-        run: flutter build web --release
+        run: flutter build web --release --dart-define-from-file=config/public_env.json
 
       - name: Upload web build
         uses: actions/upload-artifact@v7

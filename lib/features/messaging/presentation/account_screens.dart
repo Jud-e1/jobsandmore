@@ -1,9 +1,41 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/features/auth/data/auth_repository.dart';
+import 'package:jobsandmore/features/messaging/presentation/live_account.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
+
+/// Page frame for the live versions of the account screens.
+Widget _livePage(
+  BuildContext context, {
+  required String title,
+  required Widget child,
+  NavItem active = NavItem.home,
+  MobileTab? tab,
+  double maxWidth = 1100,
+}) => DPage(
+  active: active,
+  mode: NavMode.seeker,
+  mobileTab: tab,
+  mobileTitle: title,
+  mobileBody: Padding(padding: const EdgeInsets.all(16), child: child),
+  body: DContainer(
+    maxWidth: maxWidth,
+    padding: const EdgeInsets.fromLTRB(24, 32, 24, 64),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: context.type.h1.copyWith(fontSize: 32)),
+        const SizedBox(height: 20),
+        child,
+      ],
+    ),
+  ),
+);
 
 /// 13 Job alerts (M12 "New job alert" on phones).
 class JobAlertsScreen extends StatefulWidget {
@@ -73,6 +105,14 @@ class _JobAlertsScreenState extends State<JobAlertsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _livePage(
+        context,
+        title: 'Job alerts',
+        active: NavItem.jobs,
+        child: const LiveJobAlerts(),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     final phone = DPage.isPhone(context);
@@ -482,6 +522,14 @@ class _InboxScreenState extends State<InboxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _livePage(
+        context,
+        title: widget.notificationsOnly ? 'Notifications' : 'Inbox',
+        maxWidth: 900,
+        child: LiveInbox(notificationsOnly: widget.notificationsOnly),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     final phone = DPage.isPhone(context);
@@ -924,6 +972,15 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _livePage(
+        context,
+        title: 'My learning',
+        active: NavItem.academy,
+        tab: MobileTab.learn,
+        child: const LiveMyCourses(),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     final body = Column(
@@ -1132,6 +1189,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _livePage(
+        context,
+        title: 'Settings & privacy',
+        maxWidth: 720,
+        child: Consumer(
+          builder: (context, ref, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const LiveConsents(),
+              const SizedBox(height: 20),
+              DCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Account', style: context.type.h4),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        DBtn(
+                          'Reset my password',
+                          style: DBtnStyle.secondary,
+                          onTap: () async {
+                            final email = ref
+                                .read(authRepositoryProvider)
+                                .currentUser
+                                ?.email;
+                            if (email == null) return;
+                            try {
+                              await ref
+                                  .read(authRepositoryProvider)
+                                  .sendPasswordReset(email);
+                              if (context.mounted) {
+                                showJmToast(
+                                  context,
+                                  'A reset link is on its way to $email.',
+                                  tone: JmTone.success,
+                                );
+                              }
+                            } on AuthFailure catch (e) {
+                              if (context.mounted) {
+                                showJmToast(
+                                  context,
+                                  e.message,
+                                  tone: JmTone.error,
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        DBtn(
+                          'Sign out',
+                          style: DBtnStyle.secondary,
+                          onTap: () async {
+                            await ref.read(authRepositoryProvider).signOut();
+                            if (context.mounted) context.to(Routes.home);
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     Widget toggle(String n, {String? sub}) => SwitchListTile(

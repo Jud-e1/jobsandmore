@@ -31,7 +31,7 @@ if (-not $SkipTests) {
 }
 
 Write-Host '> Building web (release)...' -ForegroundColor Cyan
-& $flutter build web --release; if ($LASTEXITCODE) { throw 'flutter build web failed' }
+& $flutter build web --release --dart-define-from-file=config/public_env.json; if ($LASTEXITCODE) { throw 'flutter build web failed' }
 
 Write-Host '> Deploying to Vercel production...' -ForegroundColor Cyan
 $env:VERCEL_ORG_ID = $proj.orgId

@@ -1,7 +1,10 @@
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/responsive/breakpoints.dart';
+import 'package:jobsandmore/data/live_data.dart';
 import 'package:jobsandmore/features/demo/demo_data.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
@@ -1040,13 +1043,38 @@ class _HowItWorks extends StatelessWidget {
 
 // -------------------------------------------------------------- featured --
 
-class _Featured extends StatelessWidget {
+class _Featured extends ConsumerWidget {
   const new();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final jm = context.jm;
     final type = context.type;
+    final live = Env.hasSupabase
+        ? (ref.watch(jobListingsProvider).valueOrNull ?? const <DemoJob>[])
+        : const <DemoJob>[];
+    final picks = [
+      ...live.where((j) => j.sponsored),
+      ...live.where((j) => !j.sponsored),
+    ].take(4).toList();
+    final items = Env.hasSupabase
+        ? [
+            for (final j in picks)
+              (
+                j.ini,
+                j.title,
+                j.company,
+                j.location,
+                j.listing,
+                j.closes,
+                j.verification,
+                j.id,
+              ),
+          ]
+        : [
+            for (final f in Demo.featured)
+              (f.$1, f.$2, f.$3, f.$4, f.$5, f.$6, f.$7, Demo.jobs.first.id),
+          ];
     return _Section(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1068,12 +1096,11 @@ class _Featured extends StatelessWidget {
           DGrid(
             minItemWidth: 270,
             children: [
-              for (final (ini, title, co, loc, kind, close, ver)
-                  in Demo.featured)
+              for (final (ini, title, co, loc, kind, close, ver, id) in items)
                 DCard(
                   padding: const EdgeInsets.all(22),
                   semanticLabel: '$title at $co, $ver',
-                  onTap: () => context.to(Routes.jobDetail(Demo.jobs.first.id)),
+                  onTap: () => context.to(Routes.jobDetail(id)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1412,11 +1439,11 @@ class DCourseCard extends StatelessWidget {
   }
 }
 
-class _Academy extends StatelessWidget {
+class _Academy extends ConsumerWidget {
   const new();
 
   @override
-  Widget build(BuildContext context) => _Section(
+  Widget build(BuildContext context, WidgetRef ref) => _Section(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1439,7 +1466,15 @@ class _Academy extends StatelessWidget {
           minItemWidth: 300,
           gap: 20,
           maxColumns: 3,
-          children: [for (final c in Demo.courses) DCourseCard(c)],
+          children: [
+            for (final c
+                in Env.hasSupabase
+                    ? (ref.watch(coursesProvider).valueOrNull ??
+                              const <DemoCourse>[])
+                          .take(3)
+                    : Demo.courses)
+              DCourseCard(c),
+          ],
         ),
       ],
     ),

@@ -1,32 +1,17 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/data/live_data.dart';
 import 'package:jobsandmore/features/demo/demo_data.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
-
-/// Saved job ids (local until wired to `saved_jobs`).
-class SavedJobs extends Notifier<Set<String>> {
-  @override
-  Set<String> build() => {};
-
-  bool toggle(String id) {
-    final s = {...state};
-    final added = !s.contains(id);
-    added ? s.add(id) : s.remove(id);
-    state = s;
-    return added;
-  }
-}
-
-final savedJobsProvider = NotifierProvider<SavedJobs, Set<String>>(
-  SavedJobs.new,
-);
 
 class _SaveButton extends ConsumerWidget {
   const new(this.job);
@@ -47,14 +32,23 @@ class _SaveButton extends ConsumerWidget {
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () {
+          onTap: () async {
             unawaited(HapticFeedback.selectionClick());
-            final added = ref.read(savedJobsProvider.notifier).toggle(job.id);
-            showJmToast(
-              context,
-              added ? 'Saved ${job.title}' : 'Removed from saved jobs',
-              tone: added ? JmTone.success : JmTone.neutral,
-            );
+            try {
+              final added = await ref
+                  .read(savedJobsProvider.notifier)
+                  .toggle(job.id);
+              if (!context.mounted) return;
+              showJmToast(
+                context,
+                added ? 'Saved ${job.title}' : 'Removed from saved jobs',
+                tone: added ? JmTone.success : JmTone.neutral,
+              );
+            } on DataFailure catch (e) {
+              if (context.mounted) {
+                showJmToast(context, e.message, tone: JmTone.error);
+              }
+            }
           },
           child: SizedBox(
             width: 44,
@@ -72,21 +66,23 @@ class _SaveButton extends ConsumerWidget {
 }
 
 /// 06 Find Jobs – search results (M05 on phones).
-class JobsSearchScreen extends StatefulWidget {
+class JobsSearchScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  State<JobsSearchScreen> createState() => _JobsSearchScreenState();
+  ConsumerState<JobsSearchScreen> createState() => _JobsSearchScreenState();
 }
 
-class _JobsSearchScreenState extends State<JobsSearchScreen> {
-  final _q = TextEditingController(text: 'Analyst');
+class _JobsSearchScreenState extends ConsumerState<JobsSearchScreen> {
+  final _q = TextEditingController(text: Env.hasSupabase ? '' : 'Analyst');
   int _tab = 0;
   String _sort = 'Best match';
-  final _arr = {'On-site', 'Hybrid'};
-  final _types = {'Full-time'};
+  final _arr = Env.hasSupabase
+      ? {'On-site', 'Hybrid', 'Remote'}
+      : {'On-site', 'Hybrid'};
+  final _types = Env.hasSupabase ? <String>{} : {'Full-time'};
   bool _salaryOnly = false;
-  bool _verifiedOnly = true;
+  bool _verifiedOnly = !Env.hasSupabase;
   bool _includeEmail = false;
   String _exp = '1–3 years';
   String _industry = 'All industries';
@@ -108,7 +104,8 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
   }
 
   List<DemoJob> get _results {
-    var list = Demo.jobs.where((j) {
+    final all = ref.watch(jobListingsProvider).valueOrNull ?? const <DemoJob>[];
+    var list = all.where((j) {
       if (_salaryOnly && j.salary.contains('not disclosed')) return false;
       if (_verifiedOnly) {
         final ok =
@@ -120,13 +117,40 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
       final q = _q.text.trim().toLowerCase();
       if (q.isNotEmpty &&
           !j.title.toLowerCase().contains(q) &&
-          !j.company.toLowerCase().contains(q)) {
+          !j.company.toLowerCase().contains(q) &&
+          !j.skills.any((s) => s.toLowerCase().contains(q))) {
         return false;
+      }
+      if (j.isLive && _arr.isNotEmpty) {
+        final arr = j.type.split(' · ').skip(1).firstOrNull;
+        if (arr != null && !_arr.contains(arr)) return false;
+      }
+      if (j.isLive && _types.isNotEmpty) {
+        final group = switch (j.listing) {
+          'Contract' || 'Temporary' => 'Contract / temporary',
+          'Internship' || 'NYSC' => 'Graduate trainee',
+          final other => other,
+        };
+        if (!_types.contains(group)) return false;
       }
       return true;
     }).toList();
     if (_sort == 'Closing soon') {
-      list = [...list]..sort((a, b) => a.closes.compareTo(b.closes));
+      list = [...list]
+        ..sort(
+          (a, b) => (a.closingDate ?? DateTime(2100)).compareTo(
+            b.closingDate ?? DateTime(2100),
+          ),
+        );
+    } else if (_sort == 'Newest') {
+      list = [...list]
+        ..sort(
+          (a, b) => (b.publishedAt ?? DateTime(2000)).compareTo(
+            a.publishedAt ?? DateTime(2000),
+          ),
+        );
+    } else {
+      list = [...list]..sort((a, b) => b.match.compareTo(a.match));
     }
     return list;
   }
@@ -167,9 +191,14 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
         ),
         const SizedBox(height: 22),
         group('Work arrangement', [
-          check('On-site', _arr, '48'),
-          check('Hybrid', _arr, '21'),
-          check('Remote', _arr, '17'),
+          for (final a in const ['On-site', 'Hybrid', 'Remote'])
+            check(
+              a,
+              _arr,
+              Env.hasSupabase
+                  ? '${(ref.watch(jobListingsProvider).valueOrNull ?? const <DemoJob>[]).where((j) => j.type.endsWith(a)).length}'
+                  : const {'On-site': '48', 'Hybrid': '21', 'Remote': '17'}[a],
+            ),
         ]),
         const SizedBox(height: 22),
         group('Job type', [
@@ -293,7 +322,7 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
                     ],
                   ),
                 ),
-                DPill('${j.match}%'),
+                DPill(j.isLive && j.match == 0 ? j.listing : '${j.match}%'),
               ],
             ),
             const SizedBox(height: 10),
@@ -388,10 +417,18 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: '${j.match}% match',
+                          text: j.isLive && j.match == 0
+                              ? 'Match estimate: '
+                              : '${j.match}% match',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        TextSpan(text: ' – ${j.why}'),
+                        TextSpan(
+                          text: j.isLive
+                              ? (j.match == 0
+                                    ? 'add your skills and target roles to your profile'
+                                    : ' – based on your skills, location and target roles')
+                              : ' – ${j.why}',
+                        ),
                       ],
                     ),
                     style: type.caption.copyWith(fontSize: 13, color: jm.text),
@@ -491,7 +528,7 @@ class _JobsSearchScreenState extends State<JobsSearchScreen> {
             children: [
               Expanded(
                 child: Text(
-                  '86 jobs',
+                  Env.hasSupabase ? '${results.length} jobs' : '86 jobs',
                   style: type.label.copyWith(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
@@ -819,9 +856,21 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     );
   }
 
-  Widget _match() {
+  Widget _match(DemoJob job) {
     final jm = context.jm;
     final type = context.type;
+    final live = job.isLive;
+    final signals = ref.watch(seekerSignalsProvider).valueOrNull;
+    final mine = signals?.skills ?? const <String>{};
+    final matched = [
+      for (final s in job.skills)
+        if (mine.contains(s.toLowerCase())) s,
+    ];
+    final gaps = [
+      for (final s in job.skills)
+        if (!mine.contains(s.toLowerCase())) s,
+    ];
+    final pct = live ? job.match : 82;
     return DCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -829,11 +878,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           Row(
             children: [
               Expanded(child: Text('Your match', style: type.h4)),
-              Text('82%', style: type.h3.copyWith(color: jm.primary)),
+              Text(
+                pct > 0 ? '$pct%' : '—',
+                style: type.h3.copyWith(color: jm.primary),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          const DBar(0.82),
+          DBar(pct / 100),
           const SizedBox(height: 14),
           Text(
             'What matches',
@@ -841,14 +893,24 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '✓ Excel and reporting · ✓ 2 yrs operations · ✓ Lagos, hybrid',
+            !live
+                ? '✓ Excel and reporting · ✓ 2 yrs operations · ✓ Lagos, hybrid'
+                : matched.isEmpty
+                ? (signals == null || signals.isEmpty
+                      ? 'Add your skills and target roles to your profile to see what matches.'
+                      : 'None of the listed skills are on your profile yet.')
+                : matched.map((m) => '✓ $m').join(' · '),
             style: type.small.copyWith(color: jm.onPrimarySoft),
           ),
           const SizedBox(height: 10),
           Text('Gaps', style: type.label.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(
-            'SQL / Power BI not in your profile',
+            !live
+                ? 'SQL / Power BI not in your profile'
+                : gaps.isEmpty
+                ? 'No skill gaps against this listing.'
+                : '${gaps.join(' / ')} not in your profile',
             style: type.small.copyWith(color: jm.onAccentSoft),
           ),
           const SizedBox(height: 16),
@@ -872,8 +934,40 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Widget build(BuildContext context) {
     final jm = context.jm;
     final type = context.type;
-    final job = Demo.job(widget.jobId);
+    final jobAsync = ref.watch(jobProvider(widget.jobId));
+    final job = jobAsync.valueOrNull;
     final phone = DPage.isPhone(context);
+    if (job == null) {
+      return DPage(
+        active: NavItem.jobs,
+        mode: NavMode.seeker,
+        mobileTitle: 'Job',
+        body: Padding(
+          padding: const EdgeInsets.all(64),
+          child: Center(
+            child: jobAsync.isLoading
+                ? const CircularProgressIndicator()
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('This job is no longer available.', style: type.h3),
+                      const SizedBox(height: 12),
+                      DLink(
+                        'Browse open jobs',
+                        onTap: () => context.to(Routes.jobs),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      );
+    }
+    final live = job.isLive;
+    final about = live ? (job.about ?? job.summary ?? '') : _about;
+    final resp = live ? job.responsibilities : _resp;
+    final req = live ? job.requirements : _req;
+    final benefits = live ? job.benefits : _benefits;
+    final daysLeft = job.closingDate?.difference(DateTime.now()).inDays;
 
     final header = DCard(
       padding: EdgeInsets.all(phone ? 18 : 28),
@@ -908,11 +1002,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   children: [
                     DLink(
                       job.company,
-                      onTap: () =>
-                          context.to(Routes.employerProfile('kobo-logistics')),
+                      onTap: () => context.to(
+                        Routes.employerProfile(job.orgSlug ?? 'kobo-logistics'),
+                      ),
                     ),
                     Text(
-                      ' · Yaba, Lagos',
+                      ' · ${job.location}',
                       style: type.body.copyWith(color: jm.textMuted),
                     ),
                   ],
@@ -923,9 +1018,13 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   runSpacing: 8,
                   children: [
                     DVerifiedPill(job.verification),
-                    const DTag('Full-time'),
-                    const DTag('Hybrid (3 days on-site)'),
-                    const DTag('1–3 years'),
+                    if (live)
+                      for (final t in job.type.split(' · ')) DTag(t)
+                    else ...[
+                      const DTag('Full-time'),
+                      const DTag('Hybrid (3 days on-site)'),
+                      const DTag('1–3 years'),
+                    ],
                     DTag(job.salary),
                   ],
                 ),
@@ -933,9 +1032,19 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 Text.rich(
                   TextSpan(
                     children: [
-                      const TextSpan(text: 'Posted 17 Nov 2026 · '),
                       TextSpan(
-                        text: 'Closes ${job.closes} 2026 (23 days left)',
+                        text: live
+                            ? 'Posted ${job.posted} · '
+                            : 'Posted 17 Nov 2026 · ',
+                      ),
+                      TextSpan(
+                        text: live
+                            ? (daysLeft == null
+                                  ? 'Open until filled'
+                                  : daysLeft < 0
+                                  ? 'Closed ${job.closes}'
+                                  : 'Closes ${job.closes} ($daysLeft days left)')
+                            : 'Closes ${job.closes} 2026 (23 days left)',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const TextSpan(
@@ -971,7 +1080,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         unawaited(
                           Clipboard.setData(
                             ClipboardData(
-                              text: 'https://jobsandmoreng.com/jobs/${job.id}',
+                              text: '${Env.siteUrl}/jobs/${job.id}',
                             ),
                           ),
                         );
@@ -989,10 +1098,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     final article = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _section('About the role', body: _about),
-        _section('Responsibilities', bullets: _resp),
-        _section('Requirements', bullets: _req),
-        _section('Benefits', bullets: _benefits),
+        if (about.isNotEmpty) _section('About the role', body: about),
+        if (resp.isNotEmpty) _section('Responsibilities', bullets: resp),
+        if (req.isNotEmpty) _section('Requirements', bullets: req),
+        if (benefits.isNotEmpty) _section('Benefits', bullets: benefits),
         _section(
           'How to apply',
           body: 'Apply on JobsAndMore with your CV and answer 3 short screening questions. Shortlisted candidates hear back within 10 working days of the closing date.',
@@ -1130,12 +1239,19 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                           ),
                         ),
                       ),
-                      Text('82%', style: type.h4.copyWith(color: jm.primary)),
+                      Text(
+                        !live ? '82%' : (job.match > 0 ? '${job.match}%' : '—'),
+                        style: type.h4.copyWith(color: jm.primary),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Matches: Excel, reporting, 2 yrs ops. Gap: SQL.',
+                    !live
+                        ? 'Matches: Excel, reporting, 2 yrs ops. Gap: SQL.'
+                        : job.match > 0
+                        ? 'Estimate from your skills, location and target roles.'
+                        : 'Add skills and target roles to your profile to see a match estimate.',
                     style: type.small,
                   ),
                   const SizedBox(height: 8),
@@ -1154,12 +1270,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             ),
             const SizedBox(height: 16),
             if (_tab == 0) ...[
-              _section('About the role', body: _about),
-              _section('Responsibilities', bullets: _resp),
+              if (about.isNotEmpty) _section('About the role', body: about),
+              if (resp.isNotEmpty) _section('Responsibilities', bullets: resp),
             ],
             if (_tab == 1) ...[
-              _section('Requirements', bullets: _req),
-              _section('Benefits', bullets: _benefits),
+              if (req.isNotEmpty) _section('Requirements', bullets: req),
+              if (benefits.isNotEmpty) _section('Benefits', bullets: benefits),
             ],
             if (_tab == 2) company,
             const SizedBox(height: 12),
@@ -1220,7 +1336,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               aside: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _match(),
+                  _match(job),
                   const SizedBox(height: 16),
                   company,
                   const SizedBox(height: 16),
@@ -1236,23 +1352,26 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 }
 
 /// 08 Apply – CV, cover letter, screening, review (M07 on phones).
-class ApplyScreen extends StatefulWidget {
+class ApplyScreen extends ConsumerStatefulWidget {
   const new({required this.jobId, super.key});
 
   final String jobId;
 
   @override
-  State<ApplyScreen> createState() => _ApplyScreenState();
+  ConsumerState<ApplyScreen> createState() => _ApplyScreenState();
 }
 
-class _ApplyScreenState extends State<ApplyScreen> {
-  int _step = 3;
+class _ApplyScreenState extends ConsumerState<ApplyScreen> {
+  int _step = Env.hasSupabase ? 0 : 3;
   int _cv = 0;
-  bool _accurate = true;
+  bool _accurate = !Env.hasSupabase;
   bool _share = true;
   bool _onsite = true;
+  bool _busy = false;
+  bool _uploading = false;
+  final _answers = <String, String>{};
   final _letter = TextEditingController(
-    text: "Dear Hiring Team,\n\nI'm applying for the Operations Analyst role at Kobo Logistics. In my two years at a Lagos distribution firm, I built weekly delivery reports in Excel that helped my team spot late-dispatch patterns…",
+    text: Env.hasSupabase ? '' : "Dear Hiring Team,\n\nI'm applying for the Operations Analyst role at Kobo Logistics. In my two years at a Lagos distribution firm, I built weekly delivery reports in Excel that helped my team spot late-dispatch patterns…",
   );
 
   static const _stepNames = [
@@ -1268,7 +1387,7 @@ class _ApplyScreenState extends State<ApplyScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_accurate) {
       showJmToast(
         context,
@@ -1277,12 +1396,74 @@ class _ApplyScreenState extends State<ApplyScreen> {
       );
       return;
     }
-    showJmToast(
-      context,
-      'Application sent to Kobo Logistics',
-      tone: JmTone.success,
+    final job = ref.read(jobProvider(widget.jobId)).valueOrNull;
+    if (job == null || !job.isLive) {
+      showJmToast(
+        context,
+        'Application sent to Kobo Logistics',
+        tone: JmTone.success,
+      );
+      context.to(Routes.applications);
+      return;
+    }
+    final unanswered = job.screening.where(
+      (q) => (_answers['${q['id']}'] ?? '').trim().isEmpty,
     );
-    context.to(Routes.applications);
+    if (unanswered.isNotEmpty) {
+      setState(() => _step = 2);
+      showJmToast(
+        context,
+        'Please answer the screening questions.',
+        tone: JmTone.warning,
+      );
+      return;
+    }
+    final cvs = ref.read(myCvsProvider).valueOrNull ?? const <CvDoc>[];
+    setState(() => _busy = true);
+    try {
+      await applyToJob(
+        jobId: job.id,
+        coverLetter: _letter.text,
+        answers: _answers,
+        cvId: cvs.isEmpty ? null : cvs[_cv.clamp(0, cvs.length - 1)].id,
+      );
+      ref.invalidate(myApplicationsProvider);
+      if (!mounted) return;
+      showJmToast(
+        context,
+        'Application sent to ${job.company}',
+        tone: JmTone.success,
+      );
+      context.to(Routes.applications);
+    } on DataFailure catch (e) {
+      if (!mounted) return;
+      showJmToast(context, e.message, tone: JmTone.error);
+      if (currentUserId == null) context.to(Routes.signIn);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _uploadCv() async {
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'docx'],
+    );
+    final file = picked.firstOrNull;
+    if (file == null) return;
+    setState(() => _uploading = true);
+    try {
+      await uploadCv(await file.xFile.readAsBytes(), file.name);
+      ref.invalidate(myCvsProvider);
+      if (mounted) {
+        setState(() => _cv = 0);
+        showJmToast(context, 'CV uploaded', tone: JmTone.success);
+      }
+    } on DataFailure catch (e) {
+      if (mounted) showJmToast(context, e.message, tone: JmTone.error);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
   }
 
   Widget _stepper() {
@@ -1397,17 +1578,51 @@ class _ApplyScreenState extends State<ApplyScreen> {
         Row(
           children: [
             Expanded(child: Text('CV to send', style: type.h4)),
-            DLink('Upload another', onTap: () {}),
+            DLink(
+              _uploading ? 'Uploading…' : 'Upload a CV',
+              onTap: _uploading ? () {} : _uploadCv,
+            ),
           ],
         ),
         const SizedBox(height: 12),
-        opt(
-          0,
-          'Amaka_Okafor_Operations.pdf',
-          'Updated 15 Nov · CV check 74/100 (estimate)',
-        ),
-        const SizedBox(height: 8),
-        opt(1, 'Amaka_Okafor_General.docx', 'Updated 2 Sep'),
+        if (Env.hasSupabase) ...[
+          for (final (i, cv)
+              in (ref.watch(myCvsProvider).valueOrNull ?? const <CvDoc>[])
+                  .indexed) ...[
+            opt(
+              i,
+              cv.title,
+              'Uploaded ${fmtDay(cv.updatedAt)}${cv.primary ? ' · Main CV' : ''}',
+            ),
+            const SizedBox(height: 8),
+          ],
+          if ((ref.watch(myCvsProvider).valueOrNull ?? const []).isEmpty)
+            DDashedBox(
+              child: Column(
+                children: [
+                  Text(
+                    'No CV yet. Upload a PDF or Word file (up to 10 MB).',
+                    textAlign: TextAlign.center,
+                    style: type.small.copyWith(color: jm.textMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  DBtn(
+                    _uploading ? 'Uploading…' : 'Upload CV',
+                    icon: Icons.upload_file_rounded,
+                    onTap: _uploading ? null : _uploadCv,
+                  ),
+                ],
+              ),
+            ),
+        ] else ...[
+          opt(
+            0,
+            'Amaka_Okafor_Operations.pdf',
+            'Updated 15 Nov · CV check 74/100 (estimate)',
+          ),
+          const SizedBox(height: 8),
+          opt(1, 'Amaka_Okafor_General.docx', 'Updated 2 Sep'),
+        ],
       ],
     );
   }
@@ -1468,9 +1683,82 @@ class _ApplyScreenState extends State<ApplyScreen> {
     );
   }
 
+  Widget _liveScreening(DemoJob job, {required bool editable}) {
+    final jm = context.jm;
+    final type = context.type;
+    if (job.screening.isEmpty) {
+      return Text(
+        'This employer has no screening questions.',
+        style: type.body.copyWith(color: jm.textMuted),
+      );
+    }
+    if (!editable) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Screening answers', style: type.h4),
+          const SizedBox(height: 8),
+          for (final q in job.screening)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: '${q['question']}\n'),
+                    TextSpan(
+                      text: (_answers['${q['id']}'] ?? '').isEmpty
+                          ? 'Not answered'
+                          : _answers['${q['id']}'],
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                style: type.small,
+              ),
+            ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('A few questions from the employer', style: type.h3),
+        const SizedBox(height: 16),
+        for (final q in job.screening) ...[
+          Text('${q['question']}', style: type.label),
+          const SizedBox(height: 8),
+          if (q['options'] is List)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final o in (q['options'] as List))
+                  DChoicePill(
+                    label: '$o',
+                    selected: _answers['${q['id']}'] == '$o',
+                    onTap: () => setState(() => _answers['${q['id']}'] = '$o'),
+                  ),
+              ],
+            )
+          else
+            DField(
+              label: 'Your answer',
+              initial: _answers['${q['id']}'],
+              onChanged: (v) => _answers['${q['id']}'] = v,
+            ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
   Widget _screening({required bool editable}) {
     final jm = context.jm;
     final type = context.type;
+    final liveJob = ref.watch(jobProvider(widget.jobId)).valueOrNull;
+    if (liveJob != null && liveJob.isLive) {
+      return _liveScreening(liveJob, editable: editable);
+    }
     if (editable) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1552,8 +1840,11 @@ class _ApplyScreenState extends State<ApplyScreen> {
   Widget build(BuildContext context) {
     final jm = context.jm;
     final type = context.type;
-    final job = Demo.job(widget.jobId);
+    final job = ref.watch(jobProvider(widget.jobId)).valueOrNull;
     final phone = DPage.isPhone(context);
+    if (job == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     final confirm = Column(
       children: [
@@ -1650,7 +1941,9 @@ class _ApplyScreenState extends State<ApplyScreen> {
                         : (_step == 2 ? 'Next: Review' : 'Next'),
                     height: 52,
                     expand: true,
-                    onTap: _step == 3 ? _submit : () => setState(() => _step++),
+                    onTap: _step == 3
+                        ? (_busy ? null : _submit)
+                        : () => setState(() => _step++),
                   ),
                 ),
               ],

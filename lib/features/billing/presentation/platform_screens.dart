@@ -1,6 +1,10 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/data/live_data.dart';
+import 'package:jobsandmore/features/messaging/presentation/live_account.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,14 +30,14 @@ class _Plan {
 
 /// 23 Plans & pricing. Prices are configured by admins (plans table); the
 /// "[₦ price]" values below are the design's placeholders until confirmed.
-class PricingScreen extends StatefulWidget {
+class PricingScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  State<PricingScreen> createState() => _PricingScreenState();
+  ConsumerState<PricingScreen> createState() => _PricingScreenState();
 }
 
-class _PricingScreenState extends State<PricingScreen> {
+class _PricingScreenState extends ConsumerState<PricingScreen> {
   int _tab = 1;
 
   static const _audiences = [
@@ -150,7 +154,35 @@ class _PricingScreenState extends State<PricingScreen> {
   Widget build(BuildContext context) {
     final jm = context.jm;
     final type = context.type;
-    final plans = _sets[_tab];
+    const audienceCodes = [
+      'job_seeker',
+      'employer',
+      'business_owner',
+      'training_provider',
+    ];
+    final livePlans = Env.hasSupabase
+        ? [
+            for (final p
+                in ref.watch(plansProvider).valueOrNull ?? const <PricePlan>[])
+              if (p.audience == audienceCodes[_tab])
+                _Plan(
+                  p.name,
+                  p.description ?? '',
+                  p.priceKobo == 0
+                      ? (p.interval == 'year' ? 'Custom' : 'Free')
+                      : fmtKobo(p.priceKobo),
+                  p.priceKobo == 0
+                      ? ''
+                      : (p.interval == 'month' ? '/ month' : '/ year'),
+                  p.features,
+                  p.priceKobo == 0 && p.interval == 'year'
+                      ? 'Talk to sales'
+                      : (p.priceKobo == 0 ? 'Start free' : 'Choose ${p.name}'),
+                  popular: p.highlighted,
+                ),
+          ]
+        : const <_Plan>[];
+    final plans = livePlans.isNotEmpty ? livePlans : _sets[_tab];
 
     Widget planCard(_Plan p) => Container(
       padding: const EdgeInsets.all(26),
@@ -434,6 +466,31 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return DPage(
+        mode: NavMode.admin,
+        mobileTitle: 'Verification queue',
+        mobileBody: const Padding(
+          padding: EdgeInsets.all(16),
+          child: LiveVerificationQueue(),
+        ),
+        body: DContainer(
+          maxWidth: 1100,
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 64),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Verification queue',
+                style: context.type.h1.copyWith(fontSize: 32),
+              ),
+              const SizedBox(height: 20),
+              const LiveVerificationQueue(),
+            ],
+          ),
+        ),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     final selected = _rows[_row];

@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/data/live_data.dart';
 import 'package:jobsandmore/features/demo/demo_data.dart';
 import 'package:jobsandmore/features/home/presentation/home_screen.dart';
 import 'package:jobsandmore/ui/chrome.dart';
@@ -755,14 +760,14 @@ class BusinessDashboardScreen extends StatelessWidget {
 }
 
 /// 21 Academy catalogue.
-class AcademyScreen extends StatefulWidget {
+class AcademyScreen extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  State<AcademyScreen> createState() => _AcademyScreenState();
+  ConsumerState<AcademyScreen> createState() => _AcademyScreenState();
 }
 
-class _AcademyScreenState extends State<AcademyScreen> {
+class _AcademyScreenState extends ConsumerState<AcademyScreen> {
   final _on = <String>{
     'Free',
     'Paid',
@@ -820,6 +825,20 @@ class _AcademyScreenState extends State<AcademyScreen> {
       tint: 1,
     ),
   ];
+
+  List<DemoCourse> get _shown {
+    if (!Env.hasSupabase) return _catalogue;
+    final all = ref.watch(coursesProvider).valueOrNull ?? const <DemoCourse>[];
+    final free = _on.contains('Free');
+    final paid = _on.contains('Paid');
+    return [
+      for (final c in all)
+        if ((free && c.priceKobo == 0) ||
+            (paid && c.priceKobo > 0) ||
+            (!free && !paid))
+          c,
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -885,7 +904,12 @@ class _AcademyScreenState extends State<AcademyScreen> {
       children: [
         Row(
           children: [
-            Expanded(child: Text('42 courses', style: type.h3)),
+            Expanded(
+              child: Text(
+                Env.hasSupabase ? '${_shown.length} courses' : '42 courses',
+                style: type.h3,
+              ),
+            ),
             SizedBox(
               width: 200,
               child: DSelect<String>(
@@ -903,7 +927,7 @@ class _AcademyScreenState extends State<AcademyScreen> {
         DGrid(
           minItemWidth: 260,
           maxColumns: 3,
-          children: [for (final c in _catalogue) DCourseCard(c)],
+          children: [for (final c in _shown) DCourseCard(c)],
         ),
         const SizedBox(height: 32),
         DCard(
@@ -1067,17 +1091,50 @@ class _AcademyScreenState extends State<AcademyScreen> {
 }
 
 /// 22 Course detail.
-class CourseDetailScreen extends StatefulWidget {
+class CourseDetailScreen extends ConsumerStatefulWidget {
   const new({required this.courseId, super.key});
 
   final String courseId;
 
   @override
-  State<CourseDetailScreen> createState() => _CourseDetailScreenState();
+  ConsumerState<CourseDetailScreen> createState() => _CourseDetailScreenState();
 }
 
-class _CourseDetailScreenState extends State<CourseDetailScreen> {
+class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
   bool _saved = false;
+  bool _busy = false;
+
+  Future<void> _enrol(DemoCourse c) async {
+    if (c.uuid == null) return;
+    if (c.priceKobo > 0) {
+      showJmToast(
+        context,
+        'Paid courses open once online payments are switched on.',
+        tone: JmTone.warning,
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await enrolInCourse(c.uuid!);
+      ref
+        ..invalidate(myCoursesProvider)
+        ..invalidate(isEnrolledProvider(c.uuid!));
+      if (!mounted) return;
+      showJmToast(
+        context,
+        'Enrolled. Find it under My learning.',
+        tone: JmTone.success,
+      );
+      context.to(Routes.myCourses);
+    } on DataFailure catch (e) {
+      if (!mounted) return;
+      showJmToast(context, e.message, tone: JmTone.error);
+      if (currentUserId == null) context.to(Routes.signIn);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   static const _mods = [
     (
@@ -1116,6 +1173,16 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   Widget build(BuildContext context) {
     final jm = context.jm;
     final type = context.type;
+    final c = Env.hasSupabase
+        ? ref.watch(courseProvider(widget.courseId)).valueOrNull
+        : null;
+    final modules = c?.uuid == null
+        ? const <String>[]
+        : (ref.watch(courseModulesProvider(c!.uuid!)).valueOrNull ??
+              const <String>[]);
+    final enrolled =
+        c?.uuid != null &&
+        (ref.watch(isEnrolledProvider(c!.uuid!)).valueOrNull ?? false);
 
     Widget section(String t, Widget child) => Padding(
       padding: const EdgeInsets.only(bottom: 28),
@@ -1139,12 +1206,15 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final o in [
-                  'Write SELECT queries with filters and sorting',
-                  'Join two or more tables correctly',
-                  'Summarise data with GROUP BY',
-                  'Build a weekly KPI query for a report',
-                ])
+                for (final o
+                    in c != null && c.outcomes.isNotEmpty
+                        ? c.outcomes
+                        : const [
+                            'Write SELECT queries with filters and sorting',
+                            'Join two or more tables correctly',
+                            'Summarise data with GROUP BY',
+                            'Build a weekly KPI query for a report',
+                          ])
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Text(
@@ -1164,7 +1234,13 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 data: Theme.of(context).copyWith(dividerColor: jm.border),
                 child: Column(
                   children: [
-                    for (final (n, d, c) in _mods)
+                    for (final (n, d, c)
+                        in c != null && modules.isNotEmpty
+                            ? [
+                                for (final (i, m) in modules.indexed)
+                                  ('${i + 1}. $m', '', ''),
+                              ]
+                            : _mods)
                       ExpansionTile(
                         title: Text(
                           n,
@@ -1266,22 +1342,32 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Free',
+            c?.price ?? 'Free',
             style: type.h1.copyWith(fontSize: 32, color: jm.primary),
           ),
           const SizedBox(height: 14),
           DBtn(
-            'Enrol now',
+            enrolled
+                ? 'Go to My learning'
+                : (_busy ? 'Enrolling…' : 'Enrol now'),
             height: 52,
             expand: true,
-            onTap: () {
-              showJmToast(
-                context,
-                'Enrolled. Find it under My learning.',
-                tone: JmTone.success,
-              );
-              context.to(Routes.myCourses);
-            },
+            onTap: _busy
+                ? null
+                : () {
+                    if (c == null) {
+                      showJmToast(
+                        context,
+                        'Enrolled. Find it under My learning.',
+                        tone: JmTone.success,
+                      );
+                      context.to(Routes.myCourses);
+                    } else if (enrolled) {
+                      context.to(Routes.myCourses);
+                    } else {
+                      unawaited(_enrol(c));
+                    }
+                  },
           ),
           const SizedBox(height: 10),
           DBtn(
@@ -1364,7 +1450,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Intro to SQL for Analysts',
+                    c?.title ?? 'Intro to SQL for Analysts',
                     style: type.h1.copyWith(
                       color: Colors.white,
                       fontSize: DPage.isPhone(context) ? 30 : 40,
@@ -1374,7 +1460,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 680),
                     child: Text(
-                      'Learn to query, filter and summarise business data so you can build reports without waiting on IT.',
+                      c?.summary ?? 'Learn to query, filter and summarise business data so you can build reports without waiting on IT.',
                       style: type.bodyL.copyWith(color: DTint.onDarkMuted),
                     ),
                   ),
@@ -1383,13 +1469,16 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final t in [
-                        'Beginner',
-                        '8 hours · 6 modules',
-                        'Self-paced video + quizzes',
-                        'English',
-                        'Certificate',
-                      ])
+                      for (final t
+                          in c != null
+                              ? c.meta.split(' · ')
+                              : const [
+                                  'Beginner',
+                                  '8 hours · 6 modules',
+                                  'Self-paced video + quizzes',
+                                  'English',
+                                  'Certificate',
+                                ])
                         DPill(
                           t,
                           bg: Colors.white.withValues(alpha: 0.14),

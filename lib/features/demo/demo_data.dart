@@ -1,4 +1,6 @@
-/// DEMO CONTENT used by the UI until each screen is wired to Supabase.
+/// Sample content from the approved design. Shown only when the app runs
+/// without a backend (local preview, tests); live builds read Supabase
+/// through lib/data/live_data.dart.
 ///
 /// Mirrors the sample content in the approved design. Every organisation and
 /// person here is fictional. Screens read it through these classes only, so
@@ -21,6 +23,19 @@ class DemoJob {
     required this.why,
     this.sponsored = false,
     this.listing = 'Full-time',
+    this.orgId,
+    this.orgSlug,
+    this.summary,
+    this.about,
+    this.responsibilities = const [],
+    this.requirements = const [],
+    this.benefits = const [],
+    this.skills = const [],
+    this.screening = const [],
+    this.closingDate,
+    this.externalUrl,
+    this.stateCode,
+    this.publishedAt,
   });
 
   final String id;
@@ -37,6 +52,26 @@ class DemoJob {
   final String why;
   final bool sponsored;
   final String listing;
+
+  // Filled for live listings (null/empty for the design's sample rows).
+  final String? orgId;
+  final String? orgSlug;
+  final String? summary;
+  final String? about;
+  final List<String> responsibilities;
+  final List<String> requirements;
+  final List<String> benefits;
+  final List<String> skills;
+
+  /// Screening questions: maps with `id`, `question`, `type`, `options`.
+  final List<Map<String, dynamic>> screening;
+  final DateTime? closingDate;
+  final String? externalUrl;
+  final String? stateCode;
+  final DateTime? publishedAt;
+
+  /// True for rows loaded from the database.
+  bool get isLive => orgId != null;
 }
 
 class DemoCourse {
@@ -48,6 +83,14 @@ class DemoCourse {
     required this.tint,
     this.provider = 'JobsAndMore Academy',
     this.progress,
+    this.uuid,
+    this.summary,
+    this.description,
+    this.outcomes = const [],
+    this.hasCertificate = false,
+    this.priceKobo = 0,
+    this.topic,
+    this.level,
   });
 
   final String id;
@@ -59,6 +102,16 @@ class DemoCourse {
   final int tint;
   final String provider;
   final double? progress;
+
+  // Filled for live courses.
+  final String? uuid;
+  final String? summary;
+  final String? description;
+  final List<String> outcomes;
+  final bool hasCertificate;
+  final int priceKobo;
+  final String? topic;
+  final String? level;
 }
 
 abstract final class Demo {

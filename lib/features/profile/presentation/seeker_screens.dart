@@ -1,7 +1,14 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/data/live_data.dart';
 import 'package:jobsandmore/features/demo/demo_data.dart';
+import 'package:jobsandmore/features/profile/presentation/live_profile.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
@@ -69,14 +76,93 @@ Widget _cardHead(
 );
 
 /// 09 Job Seeker dashboard (M04 Home on phones).
-class SeekerDashboardScreen extends StatelessWidget {
+class SeekerDashboardScreen extends ConsumerWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final jm = context.jm;
     final type = context.type;
     final phone = DPage.isPhone(context);
+
+    // Live data (falls back to the design's sample content offline).
+    final live = Env.hasSupabase;
+    final profile = ref.watch(myProfileProvider).valueOrNull;
+    final myApps =
+        ref.watch(myApplicationsProvider).valueOrNull ??
+        const <MyApplication>[];
+    final apps = live
+        ? [
+            for (final a in myApps)
+              _App(
+                a.job.title,
+                a.job.company,
+                fmtDay(a.appliedAt),
+                stageLabel(a.stage),
+                fmtAgo(a.updatedAt),
+              ),
+          ]
+        : _apps;
+    final listings =
+        ref.watch(jobListingsProvider).valueOrNull ?? const <DemoJob>[];
+    final recs = live
+        ? ([...listings]..sort((a, b) => b.match.compareTo(a.match)))
+        : Demo.jobs;
+    final first = live ? (profile?.firstName ?? 'there') : Demo.seekerFirst;
+    final fullName = live ? (profile?.fullName ?? '') : Demo.seekerName;
+    final completionPct = live ? (profile?.completion ?? 0) : 72;
+    final cvs = ref.watch(myCvsProvider).valueOrNull ?? const <CvDoc>[];
+    final interview = myApps.where((a) => a.stage == 'interview').firstOrNull;
+    final (nextText, nextCta, nextRoute) = !live
+        ? (
+            'Kobo Logistics invited you to an interview – pick a time slot by Fri 21 Nov.',
+            'Choose a slot',
+            Routes.inbox,
+          )
+        : interview != null
+        ? (
+            '${interview.job.company} moved you to the interview stage for ${interview.job.title}. Check your messages.',
+            'Open messages',
+            Routes.inbox,
+          )
+        : cvs.isEmpty
+        ? (
+            'Upload your CV so you can apply to jobs in a few taps.',
+            'Add my CV',
+            Routes.profile,
+          )
+        : completionPct < 80
+        ? (
+            'Your profile is $completionPct% complete. Add skills and experience to get better match estimates.',
+            'Complete profile',
+            Routes.profile,
+          )
+        : (
+            'New jobs are posted every day. Find your next role.',
+            'Find jobs',
+            Routes.jobs,
+          );
+    final tips = live
+        ? <(String, String)>[
+            if (cvs.isEmpty) ('Upload your CV', 'Add'),
+            if ((profile?.skills ?? const []).isEmpty)
+              ('Add your skills', 'Add'),
+            if ((profile?.headline ?? '').isEmpty) ('Write a headline', 'Add'),
+            if ((profile?.phone ?? '').isEmpty) ('Add a phone number', 'Add'),
+            if ((profile?.about ?? '').isEmpty)
+              ('Tell employers about you', 'Add'),
+          ].take(3).toList()
+        : const [
+            ('Add certificates & awards', '+10%'),
+            ('Add a second skill set', '+8%'),
+            ('Add languages', '+5%'),
+          ];
+    final myCourses = live
+        ? (ref.watch(myCoursesProvider).valueOrNull ?? const <DemoCourse>[])
+        : const <DemoCourse>[];
+    final alerts =
+        ref.watch(jobAlertsProvider).valueOrNull ?? const <JobAlert>[];
+    final savedCount = ref.watch(savedJobsProvider).length;
 
     final nextAction = Container(
       padding: const EdgeInsets.all(20),
@@ -98,7 +184,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                 const DEyebrow('Next best action', color: JmBrand.amber),
                 const SizedBox(height: 6),
                 Text(
-                  'Kobo Logistics invited you to an interview – pick a time slot by Fri 21 Nov.',
+                  nextText,
                   style: type.label.copyWith(
                     color: Colors.white,
                     fontSize: 17,
@@ -109,9 +195,9 @@ class SeekerDashboardScreen extends StatelessWidget {
             ),
           ),
           DBtn(
-            'Choose a slot',
+            nextCta,
             style: DBtnStyle.amber,
-            onTap: () => context.to(Routes.inbox),
+            onTap: () => context.to(nextRoute),
           ),
         ],
       ),
@@ -129,7 +215,12 @@ class SeekerDashboardScreen extends StatelessWidget {
           ),
           Row(
             children: [
-              const DRing(72, size: 80, stroke: 8, label: 'Profile completion'),
+              DRing(
+                completionPct,
+                size: 80,
+                stroke: 8,
+                label: 'Profile completion',
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -140,11 +231,7 @@ class SeekerDashboardScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          for (final (t, p) in [
-            ('Add certificates & awards', '+10%'),
-            ('Add a second skill set', '+8%'),
-            ('Add languages', '+5%'),
-          ])
+          for (final (t, p) in tips)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
@@ -168,10 +255,15 @@ class SeekerDashboardScreen extends StatelessWidget {
           _cardHead(
             context,
             'Recommended jobs',
-            action: 'See all 24',
+            action: live ? 'See all ${listings.length}' : 'See all 24',
             onAction: () => context.to(Routes.jobs),
           ),
-          for (final j in Demo.jobs.take(3))
+          if (live && recs.isEmpty)
+            Text(
+              'No open jobs right now. New jobs appear here as employers post them.',
+              style: type.small.copyWith(color: jm.textMuted),
+            ),
+          for (final j in recs.take(3))
             InkWell(
               borderRadius: BorderRadius.circular(10),
               onTap: () => context.to(Routes.jobDetail(j.id)),
@@ -204,7 +296,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    DPill('${j.match}%'),
+                    DPill(j.match > 0 ? '${j.match}%' : j.listing),
                   ],
                 ),
               ),
@@ -223,33 +315,39 @@ class SeekerDashboardScreen extends StatelessWidget {
             action: 'View history',
             onAction: () => context.to(Routes.applications),
           ),
-          DTable(
-            columns: const [
-              ('Role', 3),
-              ('Employer', 3),
-              ('Applied', 2),
-              ('Stage', 3),
-              ('Last update', 2),
-            ],
-            rows: [
-              for (final a in _apps)
-                [
-                  Text(
-                    a.role,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(a.co),
-                  Text(a.date),
-                  Builder(
-                    builder: (c) {
-                      final (bg, fg) = stageColors(c, a.stage);
-                      return DPill(a.stage, bg: bg, fg: fg);
-                    },
-                  ),
-                  Text(a.upd),
-                ],
-            ],
-          ),
+          if (live && apps.isEmpty)
+            Text(
+              'You have not applied for a job yet. When you do, you can follow every step here.',
+              style: type.small.copyWith(color: jm.textMuted),
+            )
+          else
+            DTable(
+              columns: const [
+                ('Role', 3),
+                ('Employer', 3),
+                ('Applied', 2),
+                ('Stage', 3),
+                ('Last update', 2),
+              ],
+              rows: [
+                for (final a in apps)
+                  [
+                    Text(
+                      a.role,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(a.co),
+                    Text(a.date),
+                    Builder(
+                      builder: (c) {
+                        final (bg, fg) = stageColors(c, a.stage);
+                        return DPill(a.stage, bg: bg, fg: fg);
+                      },
+                    ),
+                    Text(a.upd),
+                  ],
+              ],
+            ),
         ],
       ),
     );
@@ -284,7 +382,9 @@ class SeekerDashboardScreen extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                'AI credits this month: 7 of 10 left · ',
+                live
+                    ? 'AI suggestions are always editable · '
+                    : 'AI credits this month: 7 of 10 left · ',
                 style: type.small.copyWith(color: jm.textMuted),
               ),
               DLink(
@@ -307,46 +407,75 @@ class SeekerDashboardScreen extends StatelessWidget {
             action: 'Browse',
             onAction: () => context.to(Routes.academy),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Excel for Data Reporting',
-                  style: type.label.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Text('60%', style: type.label),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const DBar(0.6),
-          const SizedBox(height: 6),
-          Text(
-            'Next: Module 4 – Pivot tables · Quiz due 30 Nov',
-            style: type.caption.copyWith(color: jm.textMuted, fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Intro to SQL',
-                  style: type.label.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
+          if (live) ...[
+            if (myCourses.isEmpty)
               Text(
-                'Not started',
-                style: type.caption.copyWith(color: jm.textMuted),
+                'You have not enrolled in a course yet.',
+                style: type.small.copyWith(color: jm.textMuted),
               ),
+            for (final c in myCourses.take(3)) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      c.title,
+                      style: type.label.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    (c.progress ?? 0) == 0
+                        ? 'Not started'
+                        : '${((c.progress ?? 0) * 100).round()}%',
+                    style: type.label,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              DBar(c.progress ?? 0),
+              const SizedBox(height: 14),
             ],
-          ),
-          const SizedBox(height: 8),
-          const DBar(0),
-          const SizedBox(height: 6),
-          Text(
-            'Recommended to close your SQL skill gap',
-            style: type.caption.copyWith(color: jm.textMuted, fontSize: 13),
-          ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Excel for Data Reporting',
+                    style: type.label.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text('60%', style: type.label),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const DBar(0.6),
+            const SizedBox(height: 6),
+            Text(
+              'Next: Module 4 – Pivot tables · Quiz due 30 Nov',
+              style: type.caption.copyWith(color: jm.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Intro to SQL',
+                    style: type.label.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text(
+                  'Not started',
+                  style: type.caption.copyWith(color: jm.textMuted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const DBar(0),
+            const SizedBox(height: 6),
+            Text(
+              'Recommended to close your SQL skill gap',
+              style: type.caption.copyWith(color: jm.textMuted, fontSize: 13),
+            ),
+          ],
         ],
       ),
     );
@@ -361,11 +490,30 @@ class SeekerDashboardScreen extends StatelessWidget {
             action: 'Manage',
             onAction: () => context.to(Routes.alerts),
           ),
-          for (final (t, tag, on) in [
-            ('5 saved jobs · 1 closing in 2 days', 'View', true),
-            ('"Analyst – Lagos + nearby" · Daily', '6 new', true),
-            ('"Graduate trainee – Remote" · Weekly', 'Paused', false),
-          ])
+          for (final (t, tag, on)
+              in live
+                  ? [
+                      (
+                        savedCount == 1
+                            ? '1 saved job'
+                            : '$savedCount saved jobs',
+                        'View',
+                        savedCount > 0,
+                      ),
+                      for (final a in alerts.take(3))
+                        (
+                          '"${a.name}" · ${a.frequency[0].toUpperCase()}${a.frequency.substring(1)}',
+                          a.paused ? 'Paused' : 'On',
+                          !a.paused,
+                        ),
+                      if (alerts.isEmpty)
+                        ('No job alerts yet', 'Create', false),
+                    ]
+                  : const [
+                      ('5 saved jobs · 1 closing in 2 days', 'View', true),
+                      ('"Analyst – Lagos + nearby" · Daily', '6 new', true),
+                      ('"Graduate trainee – Remote" · Weekly', 'Paused', false),
+                    ])
             Container(
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
@@ -394,13 +542,16 @@ class SeekerDashboardScreen extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('120', style: type.h1.copyWith(color: jm.primary)),
+              Text(
+                live ? '${profile?.points ?? 0}' : '120',
+                style: type.h1.copyWith(color: jm.primary),
+              ),
               const SizedBox(width: 8),
               Flexible(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    'points · 2 friends joined',
+                    live ? 'points' : 'points · 2 friends joined',
                     style: type.small.copyWith(color: jm.textMuted),
                   ),
                 ),
@@ -422,7 +573,17 @@ class SeekerDashboardScreen extends StatelessWidget {
             'Copy referral link',
             style: DBtnStyle.secondary,
             icon: Icons.link_rounded,
-            onTap: () => showJmToast(context, 'Referral link copied'),
+            onTap: () {
+              final code = profile?.referralCode;
+              if (live && code != null) {
+                unawaited(
+                  Clipboard.setData(
+                    ClipboardData(text: '${Env.siteUrl}/get-started?ref=$code'),
+                  ),
+                );
+              }
+              showJmToast(context, 'Referral link copied');
+            },
           ),
         ],
       ),
@@ -441,7 +602,9 @@ class SeekerDashboardScreen extends StatelessWidget {
               Row(
                 children: [
                   DInitials(
-                    'AO',
+                    live
+                        ? initialsOf(fullName.isEmpty ? first : fullName)
+                        : 'AO',
                     size: 44,
                     circle: true,
                     bg: jm.accentSoft,
@@ -456,10 +619,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                           'Good morning',
                           style: type.small.copyWith(color: jm.textMuted),
                         ),
-                        Text(
-                          Demo.seekerFirst,
-                          style: type.h2.copyWith(fontSize: 24),
-                        ),
+                        Text(first, style: type.h2.copyWith(fontSize: 24)),
                       ],
                     ),
                   ),
@@ -513,7 +673,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                     const DEyebrow('Next step', color: JmBrand.amber),
                     const SizedBox(height: 6),
                     Text(
-                      'Kobo Logistics invited you to interview. Pick a slot by Fri.',
+                      live ? nextText : 'Kobo Logistics invited you to interview. Pick a slot by Fri.',
                       style: type.label.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -522,10 +682,11 @@ class SeekerDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     DBtn(
-                      'Choose a time',
+                      live ? nextCta : 'Choose a time',
                       style: DBtnStyle.amber,
                       height: 44,
-                      onTap: () => context.to(Routes.notifications),
+                      onTap: () =>
+                          context.to(live ? nextRoute : Routes.notifications),
                     ),
                   ],
                 ),
@@ -536,7 +697,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                 onTap: () => context.to(Routes.profile),
                 child: Row(
                   children: [
-                    const DRing(72, size: 48, stroke: 5),
+                    DRing(completionPct, size: 48, stroke: 5),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -549,7 +710,11 @@ class SeekerDashboardScreen extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Add certificates (+10%)',
+                            live
+                                ? (tips.isEmpty
+                                      ? 'Looking good'
+                                      : tips.first.$1)
+                                : 'Add certificates (+10%)',
                             style: type.caption.copyWith(
                               color: jm.textMuted,
                               fontSize: 13,
@@ -570,7 +735,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              for (final j in Demo.jobs.take(2))
+              for (final j in recs.take(2))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: DCard(
@@ -583,7 +748,9 @@ class SeekerDashboardScreen extends StatelessWidget {
                           children: [
                             DInitials(j.ini, size: 40),
                             const Spacer(),
-                            DPill('${j.match}% match'),
+                            DPill(
+                              j.match > 0 ? '${j.match}% match' : j.listing,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
@@ -673,7 +840,7 @@ class SeekerDashboardScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Good morning, ${Demo.seekerFirst}',
+                            'Good morning, $first',
                             style: type.h1.copyWith(
                               fontSize: 34,
                               color: Colors.white,
@@ -899,6 +1066,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
       ],
     );
 
+    final shownList = Env.hasSupabase ? const LiveApplicationsList() : list;
     return DPage(
       active: NavItem.home,
       mode: NavMode.seeker,
@@ -908,24 +1076,25 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const DNotice(
-              icon: Icons.check_circle_outline_rounded,
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Application sent',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    TextSpan(text: ' to Kobo Logistics.'),
-                  ],
+            if (!Env.hasSupabase)
+              const DNotice(
+                icon: Icons.check_circle_outline_rounded,
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Application sent',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      TextSpan(text: ' to Kobo Logistics.'),
+                    ],
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 16),
             Text('My applications', style: type.h2.copyWith(fontSize: 26)),
             const SizedBox(height: 12),
-            list,
+            shownList,
           ],
         ),
       ),
@@ -937,7 +1106,7 @@ class _ApplicationsScreenState extends State<ApplicationsScreen> {
           children: [
             Text('My applications', style: type.h1.copyWith(fontSize: 32)),
             const SizedBox(height: 16),
-            list,
+            shownList,
           ],
         ),
       ),
@@ -1395,6 +1564,24 @@ class _CareerProfileScreenState extends State<CareerProfileScreen> {
         ],
       ),
     );
+
+    if (Env.hasSupabase) {
+      return const DPage(
+        active: NavItem.home,
+        mode: NavMode.seeker,
+        mobileTab: MobileTab.profile,
+        mobileTitle: 'My profile',
+        mobileBody: Padding(
+          padding: EdgeInsets.all(16),
+          child: LiveCareerProfile(),
+        ),
+        body: DContainer(
+          maxWidth: 1280,
+          padding: EdgeInsets.fromLTRB(24, 32, 24, 64),
+          child: LiveCareerProfile(),
+        ),
+      );
+    }
 
     if (phone) {
       return DPage(

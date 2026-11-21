@@ -1,12 +1,16 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/widgets/jm_feedback.dart';
+import 'package:jobsandmore/data/live_data.dart';
+import 'package:jobsandmore/features/employer/presentation/live_employer.dart';
 import 'package:jobsandmore/ui/chrome.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Employer workspace side navigation (design 15).
-class _EmployerNav extends StatelessWidget {
+class _EmployerNav extends ConsumerWidget {
   const new({required this.current});
 
   final int current;
@@ -25,53 +29,70 @@ class _EmployerNav extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final jm = context.jm;
     final type = context.type;
+    final slug = Env.hasSupabase
+        ? ref.watch(myEmployerOrgProvider).valueOrNull?.slug
+        : 'kobo-logistics';
     return DCard(
       padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (i, (label, icon, route)) in items.indexed)
-            InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: route == null
-                  ? () =>
-                        showJmToast(context, '$label is part of a later phase.')
-                  : () => context.to(route),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: i == current ? jm.primarySoft : null,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      icon,
-                      size: 18,
-                      color: i == current ? jm.onPrimarySoft : jm.textMuted,
-                    ),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        label,
-                        style: type.small.copyWith(
-                          fontWeight: i == current
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: i == current ? jm.onPrimarySoft : jm.text,
-                        ),
+          for (final (i, (label, icon, r)) in items.indexed)
+            if (r != '/employers/kobo-logistics' || slug != null)
+              Builder(
+                builder: (context) {
+                  final route = r == '/employers/kobo-logistics'
+                      ? '/employers/$slug'
+                      : r;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: route == null
+                        ? () => showJmToast(
+                            context,
+                            '$label is part of a later phase.',
+                          )
+                        : () => context.to(route),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        color: i == current ? jm.primarySoft : null,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            icon,
+                            size: 18,
+                            color: i == current
+                                ? jm.onPrimarySoft
+                                : jm.textMuted,
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              label,
+                              style: type.small.copyWith(
+                                fontWeight: i == current
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: i == current
+                                    ? jm.onPrimarySoft
+                                    : jm.text,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            ),
         ],
       ),
     );
@@ -85,7 +106,7 @@ Widget _employerShell(
 }) => DPage(
   active: NavItem.hire,
   mode: NavMode.employer,
-  mobileTitle: 'Kobo Logistics',
+  mobileTitle: Env.hasSupabase ? 'Employer' : 'Kobo Logistics',
   mobileBody: Padding(padding: const EdgeInsets.all(16), child: child),
   body: DContainer(
     maxWidth: 1320,
@@ -131,6 +152,15 @@ class EmployerDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _employerShell(
+        context,
+        nav: 0,
+        child: LiveEmployerGate(
+          builder: (org) => LiveEmployerDashboard(org: org),
+        ),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
 
@@ -477,6 +507,21 @@ class PostVacancyScreen extends StatefulWidget {
 }
 
 class _PostVacancyScreenState extends State<PostVacancyScreen> {
+  Widget _live() => DPage(
+    active: NavItem.hire,
+    mode: NavMode.employer,
+    mobileTitle: 'New vacancy',
+    mobileBody: Padding(
+      padding: const EdgeInsets.all(16),
+      child: LiveEmployerGate(builder: (org) => LivePostVacancy(org: org)),
+    ),
+    body: DContainer(
+      maxWidth: 1320,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 64),
+      child: LiveEmployerGate(builder: (org) => LivePostVacancy(org: org)),
+    ),
+  );
+
   int _section = 4;
   final _title = TextEditingController(text: 'Operations Analyst');
   String _category = 'Operations & Logistics';
@@ -522,6 +567,7 @@ class _PostVacancyScreenState extends State<PostVacancyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) return _live();
     final jm = context.jm;
     final type = context.type;
 
@@ -1133,6 +1179,13 @@ class _PipelineScreenState extends State<PipelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return _employerShell(
+        context,
+        nav: 2,
+        child: LiveEmployerGate(builder: (org) => LivePipeline(org: org)),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
     final phone = DPage.isPhone(context);
@@ -1481,6 +1534,22 @@ class _EmployerProfileScreenState extends State<EmployerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Env.hasSupabase) {
+      return DPage(
+        active: NavItem.hire,
+        footer: true,
+        mobileTitle: 'Company',
+        mobileBody: Padding(
+          padding: const EdgeInsets.all(16),
+          child: LiveEmployerProfile(slug: widget.slug),
+        ),
+        body: DContainer(
+          maxWidth: 1200,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 64),
+          child: LiveEmployerProfile(slug: widget.slug),
+        ),
+      );
+    }
     final jm = context.jm;
     final type = context.type;
 

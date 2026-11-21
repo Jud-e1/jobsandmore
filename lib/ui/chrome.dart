@@ -1,10 +1,14 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jobsandmore/app/env.dart';
 import 'package:jobsandmore/app/router/routes.dart';
 import 'package:jobsandmore/app/theme/app_theme.dart';
 import 'package:jobsandmore/core/responsive/breakpoints.dart';
 import 'package:jobsandmore/core/widgets/jm_pressable.dart';
+import 'package:jobsandmore/data/live_data.dart';
+import 'package:jobsandmore/features/auth/data/auth_repository.dart';
 import 'package:jobsandmore/ui/kit.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -145,24 +149,7 @@ class DTopNav extends StatelessWidget {
                       )
                     else
                       const Spacer(),
-                    if (mode == NavMode.public) ...[
-                      if (wide) ...[
-                        DBtn(
-                          'Sign in',
-                          style: DBtnStyle.ghost,
-                          height: 44,
-                          onTap: () => context.go(Routes.signIn),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (MediaQuery.sizeOf(context).width >= 420)
-                        DBtn(
-                          'Get started',
-                          height: 44,
-                          onTap: () => context.go(Routes.getStarted),
-                        ),
-                    ] else
-                      _AccountArea(mode: mode, wide: wide),
+                    _AccountArea(mode: mode, wide: wide),
                     if (!wide) ...[
                       const SizedBox(width: 4),
                       IconButton(
@@ -290,26 +277,74 @@ class _NavLink extends StatelessWidget {
   }
 }
 
-class _AccountArea extends StatelessWidget {
+class _AccountArea extends ConsumerWidget {
   const new({required this.mode, required this.wide});
 
   final NavMode mode;
   final bool wide;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final jm = context.jm;
-    final (ini, who, home) = switch (mode) {
-      NavMode.employer => ('KL', 'Kobo Logistics', Routes.employer),
-      NavMode.business => ('TB', 'Tola’s Bakery', Routes.businessDashboard),
-      NavMode.admin => ('VO', 'Verification desk', Routes.admin),
-      _ => ('AO', 'Amaka O.', Routes.dashboard),
-    };
+    final live = Env.hasSupabase;
+    final user = live ? ref.watch(authStateProvider).valueOrNull : null;
+    if ((live && user == null) || (!live && mode == NavMode.public)) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (wide) ...[
+            DBtn(
+              'Sign in',
+              style: DBtnStyle.ghost,
+              height: 44,
+              onTap: () => context.go(Routes.signIn),
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (MediaQuery.sizeOf(context).width >= 420)
+            DBtn(
+              'Get started',
+              height: 44,
+              onTap: () => context.go(Routes.getStarted),
+            ),
+        ],
+      );
+    }
+    final profile = live ? ref.watch(myProfileProvider).valueOrNull : null;
+    final org = live && mode == NavMode.employer
+        ? ref.watch(myEmployerOrgProvider).valueOrNull
+        : null;
+    final unread = live
+        ? (ref.watch(notificationsProvider).valueOrNull ?? const [])
+              .where((n) => !n.read)
+              .length
+        : 3;
+    final liveName =
+        org?.name ??
+        ((profile?.fullName ?? '').isNotEmpty
+            ? profile!.fullName
+            : (user?.email ?? 'My account'));
+    final (ini, who, home) = live
+        ? (
+            initialsOf(liveName),
+            liveName.length > 22 ? '${liveName.substring(0, 21)}…' : liveName,
+            mode == NavMode.employer ? Routes.employer : Routes.dashboard,
+          )
+        : switch (mode) {
+            NavMode.employer => ('KL', 'Kobo Logistics', Routes.employer),
+            NavMode.business => (
+              'TB',
+              'Tola’s Bakery',
+              Routes.businessDashboard,
+            ),
+            NavMode.admin => ('VO', 'Verification desk', Routes.admin),
+            _ => ('AO', 'Amaka O.', Routes.dashboard),
+          };
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Tooltip(
-          message: 'Notifications, 3 unread',
+          message: 'Notifications, $unread unread',
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: () => context.go(Routes.inbox),
@@ -320,18 +355,19 @@ class _AccountArea extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Icon(Icons.notifications_none_rounded, color: jm.text),
-                  Positioned(
-                    top: 9,
-                    right: 10,
-                    child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: const BoxDecoration(
-                        color: JmBrand.alert,
-                        shape: BoxShape.circle,
+                  if (unread > 0)
+                    Positioned(
+                      top: 9,
+                      right: 10,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: JmBrand.alert,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
