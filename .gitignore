@@ -63,3 +63,8 @@ android/key.properties
 
 # Raw App Store review texts stay local (strangers' writing)
 seed/reviews/
+
+# Fundraising financials stay private (public repo)
+seed/assumptions.json
+seed/model.json
+seed/model.csv
