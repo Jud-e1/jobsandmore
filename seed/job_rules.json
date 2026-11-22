@@ -1,26 +1,78 @@
 {
   "fees": {
     "label": "premium paywall and pricing",
-    "patterns": ["premium", "subscription", "pay ?wall", "\\bpay(ing)? to\\b", "free trial", "expensive", "charged", "money", "\\bfee"]
+    "patterns": [
+      "premium",
+      "subscription",
+      "pay ?wall",
+      "\\bpay(ing)? to\\b",
+      "free trial",
+      "expensive",
+      "charged",
+      "money",
+      "\\bfee"
+    ]
   },
   "cancellations": {
     "label": "fake jobs and scams",
-    "patterns": ["scam", "fake", "fraud", "phishing", "too good to be true", "not real", "bogus"]
+    "patterns": [
+      "scam",
+      "fake",
+      "fraud",
+      "phishing",
+      "too good to be true",
+      "not real",
+      "bogus"
+    ]
   },
   "availability": {
-    "label": "irrelevant or few local jobs",
-    "patterns": ["nigeria", "lagos", "abuja", "my country", "location", "irrelevant", "not relevant", "no jobs", "few jobs", "outside", "remote only"]
+    "label": "few local jobs",
+    "patterns": [
+      "nigeria",
+      "lagos",
+      "abuja",
+      "my country",
+      "location",
+      "irrelevant",
+      "not relevant",
+      "no jobs",
+      "few jobs",
+      "outside",
+      "remote only"
+    ]
   },
   "restricted": {
-    "label": "account restricted, banned or verification",
-    "patterns": ["restrict", "banned", "\\bban\\b", "suspend", "locked", "blocked", "verif", "identity", "\\bid\\b"]
+    "label": "account lock-outs",
+    "patterns": [
+      "restrict",
+      "banned",
+      "\\bban\\b",
+      "suspend",
+      "locked",
+      "blocked",
+      "verif",
+      "identity",
+      "\\bid\\b"
+    ]
   },
   "no_response": {
     "label": "no response from employers",
-    "patterns": ["never (heard|hear|got|get) (back|a reply|a response)", "no (reply|feedback|response) from", "ghost", "employers? (never|don.t) (respond|reply)", "applied .{0,40}(nothing|no response|never)"]
+    "patterns": [
+      "never (heard|hear|got|get) (back|a reply|a response)",
+      "no (reply|feedback|response) from",
+      "ghost",
+      "employers? (never|don.t) (respond|reply)",
+      "applied .{0,40}(nothing|no response|never)"
+    ]
   },
   "feed": {
     "label": "feed noise, spam and notifications",
-    "patterns": ["notification", "\\bfeed\\b", "too many (emails|posts|ads)", "\\bads\\b", "spam"]
+    "patterns": [
+      "notification",
+      "\\bfeed\\b",
+      "too many (emails|posts|ads)",
+      "\\bads\\b",
+      "spam"
+    ]
   }
 }

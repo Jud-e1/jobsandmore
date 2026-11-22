@@ -71,3 +71,5 @@ seed/model.csv
 seed/config.json
 seed/plan.json
 seed/plan.md
+seed/deck.html
+seed/deck_ngn.py

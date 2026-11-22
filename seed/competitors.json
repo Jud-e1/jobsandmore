@@ -10,8 +10,8 @@
     "bugs": "bugs and app quality",
     "trust": "trust and safety",
     "payments": "payments and refunds",
-    "availability": "irrelevant or few local jobs",
-    "restricted": "account restricted, banned or verification",
+    "availability": "few local jobs",
+    "restricted": "account lock-outs",
     "no_response": "no response from employers",
     "feed": "feed noise, spam and notifications"
   },
@@ -37,13 +37,13 @@
         "feed": 3
       },
       "top_theme": "restricted",
-      "weak_point": "account restricted, banned or verification",
+      "weak_point": "account lock-outs",
       "weak_point_count": 65,
       "weak_point_share": 38.9,
       "weak_point_rule": "sets it apart",
       "gap_points": 38.9,
       "most_mentioned": "restricted",
-      "weak_point_line": "65 of 167 recent 1-2 star reviews mention account restricted, banned or verification",
+      "weak_point_line": "65 of 167 recent 1-2 star reviews mention account lock-outs",
       "examples": [
         {
           "title": "Very Frustrating App",
@@ -94,13 +94,13 @@
         "feed": 0
       },
       "top_theme": "availability",
-      "weak_point": "irrelevant or few local jobs",
+      "weak_point": "few local jobs",
       "weak_point_count": 5,
       "weak_point_share": 17.2,
       "weak_point_rule": "sets it apart",
-      "gap_points": 15.0,
+      "gap_points": 15.4,
       "most_mentioned": "availability",
-      "weak_point_line": "5 of 29 recent 1-2 star reviews mention irrelevant or few local jobs",
+      "weak_point_line": "5 of 29 recent 1-2 star reviews mention few local jobs",
       "examples": [
         {
           "title": "I can’t change the language",
@@ -129,56 +129,6 @@
           "read": "2026-11-22"
         }
       ]
-    },
-    {
-      "name": "Glassdoor",
-      "app_name": "Glassdoor | Jobs & Careers",
-      "app_id": 589698942,
-      "rating": 4.6,
-      "ratings": 8039,
-      "reviews_read": 63,
-      "low_reviews": 8,
-      "themes": {
-        "fees": 1,
-        "cancellations": 0,
-        "support": 0,
-        "bugs": 3,
-        "trust": 0,
-        "payments": 0,
-        "availability": 1,
-        "restricted": 0,
-        "no_response": 0,
-        "feed": 1
-      },
-      "top_theme": "bugs",
-      "weak_point": "bugs and app quality",
-      "weak_point_count": 3,
-      "weak_point_share": 37.5,
-      "weak_point_rule": "sets it apart",
-      "gap_points": 4.8,
-      "most_mentioned": "bugs",
-      "weak_point_line": "3 of 8 recent 1-2 star reviews mention bugs and app quality",
-      "examples": [
-        {
-          "title": "Can’t log in",
-          "date": "2025-03-22",
-          "stars": 1
-        },
-        {
-          "title": "Can’t Login",
-          "date": "2025-03-11",
-          "stars": 1
-        },
-        {
-          "title": "Getting annoying",
-          "date": "2025-01-22",
-          "stars": 1
-        }
-      ],
-      "reviews_from": "2014-12-17",
-      "reviews_to": "2026-10-19",
-      "fetched": "2026-11-22",
-      "source": "https://itunes.apple.com/ng/rss/customerreviews/page=1/id=589698942/sortby=mostrecent/json (pages 1-2)"
     }
   ]
 }
