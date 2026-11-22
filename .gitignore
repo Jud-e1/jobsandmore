@@ -76,3 +76,8 @@ seed/deck_ngn.py
 seed/research.csv
 seed/investors.json
 seed/formd.json
+seed/template.txt
+seed/pipeline.json
+seed/outreach/
+seed/calls/
+seed/application_answers.md
