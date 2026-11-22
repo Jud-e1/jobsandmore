@@ -60,3 +60,6 @@ android/key.properties
 *.jks
 *.keystore
 .vercel
+
+# Raw App Store review texts stay local (strangers' writing)
+seed/reviews/
