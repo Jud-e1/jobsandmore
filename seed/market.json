@@ -1,0 +1,96 @@
+{
+  "created_by": "seed-market",
+  "generated": "2026-11-22",
+  "method": "top-down TAM, bottom-up SAM, SOM 2% of SAM in 3 years",
+  "tam": 22627586250,
+  "sam": 6788340000,
+  "som": 135766800,
+  "currency": "NGN",
+  "inputs": [
+    {
+      "name": "Nigerian small and medium firms",
+      "value": 670447,
+      "unit": "count",
+      "source": "IFC, Nigeria MSME Finance Market Bite, Nov 2022 (ifc.org/content/dam/ifc/doc/2023-delta/ifc-nigeria-msme-finance-market-bite-nov-2022.pdf), citing SMEDAN national MSME data",
+      "kind": "publication",
+      "level": "tam"
+    },
+    {
+      "name": "share of Nigerian small and medium firms that would buy",
+      "value": 25,
+      "unit": "%",
+      "source": "assumption: about 1 in 4 SMEs pays to advertise at least one vacancy a year; replace with an employer survey",
+      "kind": "assumption",
+      "level": "tam"
+    },
+    {
+      "name": "spend a year each",
+      "value": 135000,
+      "unit": "NGN a year",
+      "source": "assumption: 3 months a year of Employer Professional at NGN 45,000/month (draft price in the plans table) while hiring",
+      "kind": "assumption",
+      "level": "tam"
+    },
+    {
+      "name": "paying SME employers in the launch states (Lagos, FCT, Rivers, Oyo, Ogun)",
+      "value": 50284,
+      "unit": "count",
+      "source": "assumption: 30% of the 670,447 SMEs (IFC/SMEDAN) are in the 5 launch states, x the 25% that pay to hire; check against SMEDAN state tables",
+      "kind": "assumption",
+      "level": "sam"
+    },
+    {
+      "name": "months a year per customer",
+      "value": 3,
+      "unit": "per year",
+      "source": "assumption: an SME subscribes for 3 hiring months a year",
+      "kind": "assumption",
+      "level": "sam"
+    },
+    {
+      "name": "price per month",
+      "value": 45000,
+      "unit": "NGN",
+      "source": "assumption: Employer Professional NGN 45,000/month, the draft price in the plans table, pending commercial testing",
+      "kind": "assumption",
+      "level": "sam"
+    },
+    {
+      "name": "Formal MSMEs in Nigeria",
+      "value": 1240000,
+      "unit": "businesses",
+      "source": "IFC, Nigeria MSME Finance Market Bite, Nov 2022 (ifc.org/content/dam/ifc/doc/2023-delta/ifc-nigeria-msme-finance-market-bite-nov-2022.pdf), citing SMEDAN national MSME data",
+      "kind": "publication",
+      "level": "context"
+    },
+    {
+      "name": "Informal MSMEs in Nigeria",
+      "value": 38400000,
+      "unit": "businesses",
+      "source": "IFC, Nigeria MSME Finance Market Bite, Nov 2022 (ifc.org/content/dam/ifc/doc/2023-delta/ifc-nigeria-msme-finance-market-bite-nov-2022.pdf), citing SMEDAN national MSME data",
+      "kind": "publication",
+      "level": "context"
+    },
+    {
+      "name": "Small and medium firms in Nigeria",
+      "value": 670447,
+      "unit": "businesses",
+      "source": "IFC, Nigeria MSME Finance Market Bite, Nov 2022 (ifc.org/content/dam/ifc/doc/2023-delta/ifc-nigeria-msme-finance-market-bite-nov-2022.pdf), citing SMEDAN national MSME data",
+      "kind": "publication",
+      "level": "context"
+    }
+  ],
+  "notes": [],
+  "methods": {
+    "tam": "top-down",
+    "sam": "bottom-up"
+  },
+  "formulas": {
+    "tam": "670,447 Nigerian small and medium firms x 25% x NGN 135,000 = NGN 22,627,586,250",
+    "sam": "50,284 paying SME employers in the launch states (Lagos, FCT, Rivers, Oyo, Ogun) x 3 months a year x NGN 45,000 = NGN 6,788,340,000",
+    "som": "2% of SAM NGN 6,788,340,000 = NGN 135,766,800"
+  },
+  "som_share_pct": 2.0,
+  "som_years": 3,
+  "som_reason": "Verified-employer listings win SMEs whose openings get buried among fake jobs on Indeed and whose recruiters get locked out of LinkedIn: about 1,000 paying employers in the five launch states by year 3, reached through SME associations, NYSC and university career fairs and the Business Hub"
+}
