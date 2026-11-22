@@ -68,3 +68,6 @@ seed/reviews/
 seed/assumptions.json
 seed/model.json
 seed/model.csv
+seed/config.json
+seed/plan.json
+seed/plan.md
